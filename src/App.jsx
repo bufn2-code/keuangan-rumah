@@ -98,16 +98,33 @@ export default function App() {
     }).format(number);
   };
 
+  // Fungsi baru untuk menangani input angka dan memberi titik otomatis
+  const handleAmountChange = (e) => {
+    // Hanya ambil karakter angka (0-9), buang huruf atau simbol lain
+    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+    
+    if (rawValue) {
+      // Ubah jadi angka lalu format dengan titik (standar id-ID)
+      setAmount(parseInt(rawValue, 10).toLocaleString('id-ID'));
+    } else {
+      setAmount('');
+    }
+  };
+
   const handleAddTransaction = async (e) => {
     e.preventDefault();
-    if (!description || !amount || !date || !user) return;
+    
+    // Sebelum disimpan ke Firebase, hapus dulu titiknya agar kembali menjadi angka murni
+    const cleanAmount = amount.replace(/\./g, '');
+
+    if (!description || !cleanAmount || !date || !user) return;
 
     try {
       const txRef = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
       await addDoc(txRef, {
         type,
         description,
-        amount: parseFloat(amount),
+        amount: parseFloat(cleanAmount),
         date,
         createdAt: Date.now()
       });
@@ -144,7 +161,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-none">Keuangan Rumah</h1>
-              <p className="text-blue-100 text-xs mt-1">Pencatatan Pembangunan</p>
+              <p className="text-blue-100 text-xs mt-1">Catat Doi Rumah</p>
             </div>
           </div>
         </header>
@@ -226,12 +243,12 @@ export default function App() {
                     <span className="text-slate-400 font-bold text-xs">Rp</span>
                   </div>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    min="1"
                     placeholder="Jumlah"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={handleAmountChange}
                     className="w-full pl-8 pr-2 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none font-semibold"
                   />
                 </div>
