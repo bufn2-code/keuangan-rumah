@@ -35,6 +35,9 @@ export default function App() {
   const [type, setType] = useState('expense');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // State baru untuk menu filter riwayat
+  const [filter, setFilter] = useState('all'); // Pilihan: 'all', 'income', 'expense'
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -63,7 +66,8 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     
-    const txRef = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
+    // UBAH BARIS INI: Ganti jalur database menjadi 'public/data' agar sinkron antar perangkat
+    const txRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
     const unsubscribe = onSnapshot(txRef, (snapshot) => {
       const data = [];
       snapshot.forEach((doc) => {
@@ -120,7 +124,8 @@ export default function App() {
     if (!description || !cleanAmount || !date || !user) return;
 
     try {
-      const txRef = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
+      // UBAH BARIS INI: Ganti jalur database menjadi 'public/data'
+      const txRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
       await addDoc(txRef, {
         type,
         description,
@@ -138,12 +143,19 @@ export default function App() {
   const handleDelete = async (id) => {
     if (!user) return;
     try {
-      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id);
+      // UBAH BARIS INI: Ganti jalur database menjadi 'public/data'
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'transactions', id);
       await deleteDoc(docRef);
     } catch (error) {
       console.error("Error deleting doc:", error);
     }
   };
+
+  // Fungsi untuk memfilter transaksi berdasarkan menu tab yang dipilih
+  const filteredTransactions = transactions.filter(t => {
+    if (filter === 'all') return true;
+    return t.type === filter;
+  });
 
   return (
     <div className="min-h-screen bg-slate-200 text-slate-800 font-sans pb-6">
@@ -281,21 +293,52 @@ export default function App() {
 
           {/* Riwayat Transaksi */}
           <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col">
-            <h3 className="text-sm font-bold mb-3">Riwayat Terakhir</h3>
+            <h3 className="text-sm font-bold mb-3">Daftar Transaksi</h3>
+            
+            {/* Menu Tab Filter */}
+            <div className="flex bg-slate-100 p-1 rounded-lg mb-3">
+              <button
+                onClick={() => setFilter('all')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                  filter === 'all' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'
+                }`}
+              >
+                Semua
+              </button>
+              <button
+                onClick={() => setFilter('income')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                  filter === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'
+                }`}
+              >
+                Pemasukan
+              </button>
+              <button
+                onClick={() => setFilter('expense')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                  filter === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500'
+                }`}
+              >
+                Pengeluaran
+              </button>
+            </div>
             
             {isLoading ? (
               <div className="py-8 flex flex-col items-center justify-center text-slate-400">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                 <p className="text-sm">Memuat data...</p>
               </div>
-            ) : transactions.length === 0 ? (
+            ) : filteredTransactions.length === 0 ? (
               <div className="py-8 flex flex-col items-center justify-center text-slate-400">
                 <FileText size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">Belum ada catatan</p>
+                <p className="text-sm">
+                  {filter === 'income' ? 'Belum ada pemasukan' : 
+                   filter === 'expense' ? 'Belum ada pengeluaran' : 'Belum ada catatan'}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions.map((t) => (
+                {filteredTransactions.map((t) => (
                   <div key={t.id} className="flex items-start justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 gap-2">
                     
                     <div className="flex items-start gap-3 flex-1 min-w-0">
