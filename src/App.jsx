@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText, Edit } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText, Edit, Heart } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -196,9 +196,9 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-200 text-slate-800 font-sans pb-6">
-      {/* Container utama */}
-      <div className="max-w-md mx-auto bg-slate-50 min-h-screen shadow-xl sm:border-x border-slate-300">
+    <div className="min-h-screen bg-slate-200 text-slate-800 font-sans sm:py-8">
+      {/* Container utama: Dibuat lebih elegan dengan flex-col agar footer selalu di bawah */}
+      <div className="max-w-md mx-auto bg-slate-50 min-h-screen sm:min-h-0 sm:rounded-3xl shadow-2xl sm:border border-slate-300 flex flex-col overflow-hidden relative">
         
         {/* Header */}
         <header className="bg-blue-700 text-white p-4 shadow-sm rounded-b-2xl mb-4 relative overflow-hidden">
@@ -211,7 +211,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-none">Keuangan Bekeng Rumah</h1>
-              <p className="text-blue-100 text-xs mt-1">Catat Doi Samua Disini</p>
+              <p className="text-blue-100 text-xs mt-1">Catat Samua Doi Maso deng Kaluar Disini</p>
             </div>
           </div>
         </header>
@@ -445,6 +445,20 @@ export default function App() {
           </section>
           
         </main>
+
+        {/* Footer Baru yang Lebih Elegan */}
+        <footer className="mt-auto pt-12 pb-6 bg-slate-50 text-center relative z-10">
+          <div className="flex flex-col items-center justify-center space-y-1.5">
+            <div className="flex items-center gap-1.5 opacity-80">
+              <Home size={14} className="text-blue-600" />
+              <span className="text-[11px] font-bold text-slate-600 tracking-widest uppercase">Semoga Selalu Lancar Semua Urusan</span>
+            </div>
+            <p className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
+              Sten. Sucita. Jourell <Heart size={10} className="text-rose-500 fill-rose-500 animate-pulse" />
+            </p>
+          </div>
+        </footer>
+
       </div>
     </div>
   );
