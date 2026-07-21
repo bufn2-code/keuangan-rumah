@@ -1,17 +1,83 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+
+// Konfigurasi Firebase Anda
+const firebaseConfig = {
+  apiKey: "AIzaSyCwS1xS39EQChrjgnWGmW9tj5vVBf1O4tI",
+  authDomain: "keuangan-rumah-e0b8f.firebaseapp.com",
+  projectId: "keuangan-rumah-e0b8f",
+  storageBucket: "keuangan-rumah-e0b8f.firebasestorage.app",
+  messagingSenderId: "361798810617",
+  appId: "1:361798810617:web:e7a4d5759bfb20e4439b28",
+  measurementId: "G-JCRGZHMM27"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Ubah baris appId menjadi teks statis yang aman dari karakter garis miring
+const appId = 'keuangan-rumah-app';
 
 export default function App() {
-  const [transactions, setTransactions] = useState([
-    { id: 1, type: 'income', description: 'Dana Awal Tabungan', amount: 150000000, date: new Date().toISOString().split('T')[0] },
-    { id: 2, type: 'expense', description: 'Beli Semen 50 Sak, Pasir 1 Truk, dan Paku 5 Kg untuk mulai pondasi', amount: 4850000, date: new Date().toISOString().split('T')[0] },
-    { id: 3, type: 'expense', description: 'Bayar Tukang (Minggu 1)', amount: 4000000, date: new Date().toISOString().split('T')[0] },
-  ]);
+  const [transactions, setTransactions] = useState([]);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            // Lingkungan pratinjau mencoba login dengan token khusus
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (e) {
+            // Jika token mismatch (karena menggunakan API Key Anda sendiri), paksa gunakan login Anonim
+            console.warn("Menggunakan Firebase milik pengguna. Beralih ke Anonymous Login.");
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth error:", error);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const txRef = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
+    const unsubscribe = onSnapshot(txRef, (snapshot) => {
+      const data = [];
+      snapshot.forEach((doc) => {
+        data.push({ id: doc.id, ...doc.data() });
+      });
+      data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactions(data);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Data error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const { totalIncome, totalExpense, balance } = useMemo(() => {
     let income = 0;
@@ -32,29 +98,39 @@ export default function App() {
     }).format(number);
   };
 
-  const handleAddTransaction = (e) => {
+  const handleAddTransaction = async (e) => {
     e.preventDefault();
-    if (!description || !amount || !date) return;
+    if (!description || !amount || !date || !user) return;
 
-    const newTransaction = {
-      id: Date.now(),
-      type,
-      description,
-      amount: parseFloat(amount),
-      date,
-    };
-    setTransactions([newTransaction, ...transactions]);
-    setDescription('');
-    setAmount('');
+    try {
+      const txRef = collection(db, 'artifacts', appId, 'users', user.uid, 'transactions');
+      await addDoc(txRef, {
+        type,
+        description,
+        amount: parseFloat(amount),
+        date,
+        createdAt: Date.now()
+      });
+      setDescription('');
+      setAmount('');
+    } catch (error) {
+      console.error("Error adding doc:", error);
+    }
   };
 
-  const handleDelete = (id) => {
-    setTransactions(transactions.filter(t => t.id !== id));
+  const handleDelete = async (id) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Error deleting doc:", error);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-200 text-slate-800 font-sans pb-6">
-      {/* Container utama dibuat seperti frame HP (max-w-md) agar selalu konsisten dan rapi */}
+      {/* Container utama */}
       <div className="max-w-md mx-auto bg-slate-50 min-h-screen shadow-xl sm:border-x border-slate-300">
         
         {/* Header */}
@@ -190,7 +266,12 @@ export default function App() {
           <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col">
             <h3 className="text-sm font-bold mb-3">Riwayat Terakhir</h3>
             
-            {transactions.length === 0 ? (
+            {isLoading ? (
+              <div className="py-8 flex flex-col items-center justify-center text-slate-400">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <p className="text-sm">Memuat data...</p>
+              </div>
+            ) : transactions.length === 0 ? (
               <div className="py-8 flex flex-col items-center justify-center text-slate-400">
                 <FileText size={32} className="mb-2 opacity-50" />
                 <p className="text-sm">Belum ada catatan</p>
@@ -198,16 +279,13 @@ export default function App() {
             ) : (
               <div className="space-y-3">
                 {transactions.map((t) => (
-                  /* Menggunakan items-start agar jika teks menjadi 2 baris, layout tetap sejajar di atas */
                   <div key={t.id} className="flex items-start justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 gap-2">
                     
-                    {/* Bagian Kiri: Ikon & Teks */}
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${t.type === 'income' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
                         {t.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                       </div>
                       <div className="flex-1">
-                        {/* break-words membuat teks panjang turun ke bawah alih-alih terpotong */}
                         <p className="font-semibold text-sm text-slate-800 break-words leading-tight">
                           {t.description}
                         </p>
@@ -217,7 +295,6 @@ export default function App() {
                       </div>
                     </div>
                     
-                    {/* Bagian Kanan: Harga & Tombol */}
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <span className={`font-bold text-sm whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatRupiah(t.amount)}
