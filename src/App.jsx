@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText, Edit } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 // Konfigurasi Firebase Anda
 const firebaseConfig = {
@@ -34,6 +34,9 @@ export default function App() {
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // State baru untuk fitur edit
+  const [editingId, setEditingId] = useState(null);
 
   // State baru untuk menu filter riwayat
   const [filter, setFilter] = useState('all'); // Pilihan: 'all', 'income', 'expense'
@@ -124,20 +127,55 @@ export default function App() {
     if (!description || !cleanAmount || !date || !user) return;
 
     try {
-      // UBAH BARIS INI: Ganti jalur database menjadi 'public/data'
-      const txRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
-      await addDoc(txRef, {
-        type,
-        description,
-        amount: parseFloat(cleanAmount),
-        date,
-        createdAt: Date.now()
-      });
+      if (editingId) {
+        // Mode Edit: Update dokumen yang sudah ada
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'transactions', editingId);
+        await updateDoc(docRef, {
+          type,
+          description,
+          amount: parseFloat(cleanAmount),
+          date
+        });
+        setEditingId(null); // Selesai edit, kembali ke mode normal
+      } else {
+        // Mode Tambah: Buat dokumen baru
+        const txRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
+        await addDoc(txRef, {
+          type,
+          description,
+          amount: parseFloat(cleanAmount),
+          date,
+          createdAt: Date.now()
+        });
+      }
+      
+      // Kosongkan form setelah berhasil
       setDescription('');
       setAmount('');
     } catch (error) {
-      console.error("Error adding doc:", error);
+      console.error("Error adding/updating doc:", error);
     }
+  };
+
+  // Fungsi saat tombol Edit ditekan
+  const handleEdit = (t) => {
+    setEditingId(t.id);
+    setType(t.type);
+    setDescription(t.description);
+    setAmount(t.amount.toLocaleString('id-ID')); // Tambahkan format titik kembali ke layar
+    setDate(t.date);
+    
+    // Gulir layar ke atas secara otomatis agar form edit terlihat
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Fungsi untuk membatalkan edit
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setDescription('');
+    setAmount('');
+    setType('expense');
+    setDate(new Date().toISOString().split('T')[0]);
   };
 
   const handleDelete = async (id) => {
@@ -172,8 +210,8 @@ export default function App() {
               <Home size={22} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold leading-none">Keuangan Rumah</h1>
-              <p className="text-blue-100 text-xs mt-1">Catat Doi Rumah</p>
+              <h1 className="text-lg font-bold leading-none">Keuangan Bekeng Rumah</h1>
+              <p className="text-blue-100 text-xs mt-1">Catat Doi Samua Disini</p>
             </div>
           </div>
         </header>
@@ -208,11 +246,12 @@ export default function App() {
             </div>
           </section>
 
-          {/* Form Tambah Transaksi */}
+          {}
+          {/* Form Tambah/Edit Transaksi */}
           <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <Plus size={16} className="text-blue-600" />
-              Catat Transaksi Baru
+              <Plus size={16} className={`transition-colors ${editingId ? 'text-orange-500 rotate-45' : 'text-blue-600'}`} />
+              {editingId ? 'Edit Transaksi' : 'Catat Transaksi Baru'}
             </h3>
             <form onSubmit={handleAddTransaction} className="space-y-3">
               
@@ -280,17 +319,38 @@ export default function App() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className={`w-full py-2.5 rounded-lg text-white font-bold text-sm shadow-sm active:scale-[0.98] transition-transform ${
-                  type === 'expense' ? 'bg-rose-600' : 'bg-emerald-600'
-                }`}
-              >
-                Simpan Transaksi
-              </button>
+              {editingId ? (
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className={`flex-1 py-2.5 rounded-lg text-white font-bold text-sm shadow-sm active:scale-[0.98] transition-transform ${
+                      type === 'expense' ? 'bg-orange-500' : 'bg-emerald-600'
+                    }`}
+                  >
+                    Simpan Perubahan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="flex-1 py-2.5 rounded-lg bg-slate-200 text-slate-700 font-bold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                  >
+                    Batal
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  className={`w-full py-2.5 rounded-lg text-white font-bold text-sm shadow-sm active:scale-[0.98] transition-transform ${
+                    type === 'expense' ? 'bg-rose-600' : 'bg-emerald-600'
+                  }`}
+                >
+                  Simpan Transaksi
+                </button>
+              )}
             </form>
           </section>
 
+          {}
           {/* Riwayat Transaksi */}
           <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col">
             <h3 className="text-sm font-bold mb-3">Daftar Transaksi</h3>
@@ -355,16 +415,27 @@ export default function App() {
                       </div>
                     </div>
                     
+                    {/* Bagian Kanan: Harga & Tombol */}
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <span className={`font-bold text-sm whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatRupiah(t.amount)}
                       </span>
-                      <button 
-                        onClick={() => handleDelete(t.id)}
-                        className="text-slate-400 active:text-rose-600 p-1.5 rounded-md active:bg-rose-100 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleEdit(t)}
+                          className="text-slate-400 active:text-blue-600 p-1.5 rounded-md active:bg-blue-100 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(t.id)}
+                          className="text-slate-400 active:text-rose-600 p-1.5 rounded-md active:bg-rose-100 transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
 
                   </div>
