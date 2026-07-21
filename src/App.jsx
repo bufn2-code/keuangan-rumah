@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText, Edit, Heart } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Home, Plus, Trash2, Calendar, FileText, Edit, Heart, Download } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -40,6 +40,41 @@ export default function App() {
 
   // State baru untuk menu filter riwayat
   const [filter, setFilter] = useState('all'); // Pilihan: 'all', 'income', 'expense'
+
+  // State baru untuk fitur tombol Instalasi (PWA)
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    // Mendengarkan event dari browser jika aplikasi siap diinstal
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault(); // Mencegah popup bawaan browser yang kadang mengganggu
+      setDeferredPrompt(e); // Menyimpan event untuk dipanggil nanti saat tombol ditekan
+      setIsInstallable(true); // Memunculkan tombol "Instal" di layar
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    
+    // Memunculkan popup instalasi resmi dari sistem Android/Chrome
+    deferredPrompt.prompt();
+    
+    // Menunggu respon pengguna (apakah mengklik Instal atau Batal)
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      console.log('User menerima instalasi PWA');
+      setIsInstallable(false); // Sembunyikan tombol setelah berhasil diinstal
+    }
+    setDeferredPrompt(null);
+  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -205,11 +240,23 @@ export default function App() {
           <div className="absolute -right-4 -top-4 opacity-10">
             <Home size={100} />
           </div>
+          
+          {/* Tombol Instal Pintar (Hanya muncul jika belum diinstal & didukung browser) */}
+          {isInstallable && (
+            <button 
+              onClick={handleInstallApp}
+              className="absolute right-4 top-4 bg-white/20 hover:bg-white/30 active:scale-95 text-white text-[10px] font-bold py-1.5 px-3 rounded-full flex items-center gap-1.5 backdrop-blur-sm transition-all z-20 shadow-sm border border-white/30"
+            >
+              <Download size={14} /> 
+              <span>Instal App</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-3 relative z-10">
-            <div className="bg-white/20 p-2 rounded-lg">
+            <div className="bg-white/20 p-2 rounded-lg mt-6">
               <Home size={22} className="text-white" />
             </div>
-            <div>
+            <div className="mt-6">
               <h1 className="text-lg font-bold leading-none">Keuangan Bekeng Rumah</h1>
               <p className="text-blue-100 text-xs mt-1">Catat Samua Doi Maso deng Kaluar Disini</p>
             </div>
